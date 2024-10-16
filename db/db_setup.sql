@@ -1,0 +1,136 @@
+-- ================================
+-- FUNCTION: CalculateDiscount
+-- Menghitung diskon berdasarkan poin loyalitas
+-- ================================
+-- CREATE FUNCTION CalculateDiscount(points INT)
+-- RETURNS DECIMAL(5,2)
+-- DETERMINISTIC
+-- BEGIN
+--     DECLARE discount DECIMAL(5,2);
+--     IF points >= 500 THEN
+--         SET discount = 20.00;
+--     ELSEIF points >= 200 THEN
+--         SET discount = 10.00;
+--     ELSE
+--         SET discount = 0.00;
+--     END IF;
+--     RETURN discount;
+-- END;
+
+-- ================================
+-- STORED PROCEDURE: UpdateReservationStatus
+-- Mengubah status reservasi dan menggunakan transaksi untuk rollback jika gagal
+-- ================================
+-- CREATE PROCEDURE UpdateReservationStatus(
+--     IN p_reservation_id INT,
+--     IN p_new_status VARCHAR(50)
+-- )
+-- BEGIN
+--     DECLARE current_status VARCHAR(50);
+--     -- Mulai transaksi
+--     START TRANSACTION;
+    
+--     -- Cek status saat ini
+--     SELECT status INTO current_status
+--     FROM reservations
+--     WHERE reservation_id = p_reservation_id;
+
+--     -- Jika status baru berbeda dari yang sekarang, lakukan update
+--     IF current_status != p_new_status THEN
+--         UPDATE reservations
+--         SET status = p_new_status
+--         WHERE reservation_id = p_reservation_id;
+
+--         -- Jika status diubah menjadi 'cancelled', set table menjadi available
+--         IF p_new_status = 'cancelled' THEN
+--             UPDATE tables
+--             SET availability_status = 'available'
+--             WHERE table_number = (SELECT table_number FROM reservations WHERE reservation_id = p_reservation_id);
+--         END IF;
+--     END IF;
+
+--     -- Commit transaksi jika tidak ada error
+--     COMMIT;
+-- END;
+
+-- ================================
+-- STORED PROCEDURE: CalculateTotalOrderPrice
+-- Menghitung total harga pesanan berdasarkan jumlah dan harga di menu
+-- ================================
+-- CREATE PROCEDURE CalculateTotalOrderPrice(
+--     IN p_reservation_id INT,
+--     OUT p_total_price DECIMAL(10,2)
+-- )
+-- BEGIN
+--     SELECT SUM(o.quantity * m.price) INTO p_total_price
+--     FROM orders o
+--     JOIN menu m ON o.menu_id = m.menu_id
+--     WHERE o.reservation_id = p_reservation_id;
+-- END;
+
+-- ================================
+-- TRIGGER: Update Table Availability After Reservation
+-- Mengubah status ketersediaan meja setelah reservasi berhasil dibuat
+-- ================================
+-- CREATE TRIGGER update_table_availability_after_reservation
+-- AFTER INSERT ON reservations
+-- FOR EACH ROW
+-- BEGIN
+--     UPDATE tables
+--     SET availability_status = 'reserved'
+--     WHERE table_number = NEW.table_number;
+-- END;
+
+-- ================================
+-- TRIGGER: Update Table Availability After Reservation Cancelled
+-- Meja kembali tersedia jika reservasi dibatalkan
+-- ================================
+-- CREATE TRIGGER update_table_availability_after_reservation_cancel
+-- AFTER UPDATE ON reservations
+-- FOR EACH ROW
+-- BEGIN
+--     IF NEW.status = 'cancelled' THEN
+--         UPDATE tables
+--         SET availability_status = 'available'
+--         WHERE table_number = NEW.table_number;
+--     END IF;
+-- END;
+
+-- ================================
+-- STORED PROCEDURE: AddLoyaltyPoints
+-- Menambah poin loyalitas setelah reservasi berhasil
+-- ================================
+-- CREATE PROCEDURE AddLoyaltyPoints(
+--     IN p_customer_id INT,
+--     IN p_points_earned INT
+-- )
+-- BEGIN
+--     UPDATE customers
+--     SET loyalty_points = loyalty_points + p_points_earned
+--     WHERE customer_id = p_customer_id;
+-- END;
+
+-- ================================
+-- TRIGGER: Add Loyalty Points After Completed Reservation
+-- Menambah poin loyalitas pelanggan setelah reservasi selesai
+-- ================================
+-- CREATE TRIGGER add_loyalty_points_after_reservation
+-- AFTER UPDATE ON reservations
+-- FOR EACH ROW
+-- BEGIN
+--     IF NEW.status = 'completed' THEN
+--         -- Tambahkan 10 poin setelah reservasi selesai
+--         CALL AddLoyaltyPoints(NEW.customer_id, 10);
+--     END IF;
+-- END;
+-- CREATE PROCEDURE AddReservation(
+--     IN p_customer_id INT,
+--     IN p_table_number INT,
+--     IN p_reservation_time DATETIME,
+--     IN p_status VARCHAR(50)
+-- )
+-- BEGIN
+--     INSERT INTO reservations (customer_id, table_number, reservation_time, status)
+--     VALUES (p_customer_id, p_table_number, p_reservation_time, p_status);
+-- END;
+
